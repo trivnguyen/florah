@@ -6,8 +6,9 @@ from pathlib import Path
 
 import torch
 import numpy as np
+from torch.utils.data import TensorDataset
 
-from .envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
+from ..envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 def get_all_dataset(prefix=DEFAULT_DATASET_PATH):
     return glob.glob(os.path.join(prefix, "*"))
@@ -90,4 +91,39 @@ def get_best_checkpoint(run_version_path):
             min_loss = loss
             best_checkpoint = ckpt
     return best_checkpoint, min_loss
+
+def write_ds(path, features, graph_properties={}, headers={}):
+    """ Write dataset into HDF5 file """
+    # we'll store all graphs in the same array, so we need pointer to separate graphs
+    ptr = np.cumsum([len(features[i]) for i in range(len(features))])
+    ptr = np.insert(ptr, 0, 0)
+    features = np.concatenate(features)
+
+    with h5py.File(path, 'w') as f:
+        f.attrs.update(headers)
+        f.create_dataset('features', data=features)
+        f.create_dataset('ptr', data=ptr)
+        for key in graph_properties.keys():
+            if graph_properties.get(key) is not None:
+                f.create_dataset(key, data=graph_properties[key])
+
+def read_ds(path):
+    """ Read stellar kinematics from dSph dataset """
+    with h5py.File(path, 'r') as f:
+        # read dataset attributes
+        attrs = dict(f.attrs)
+
+        # read pointer to each graph and concatenate graph features
+        ptr = f['ptr'][:]
+        features = f['features'][:]
+        features = [features[ptr[i]:ptr[i+1]] for i  in range(len(ptr)-1)]
+
+        # read labels
+        labels = f.get('labels')
+        if labels is not None:
+            labels = labels[:]
+
+    features = np.array(features, dtype='object')
+
+    return features, labels, attrs
 

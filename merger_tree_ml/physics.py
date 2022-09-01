@@ -10,7 +10,10 @@ def default_cosmo():
     cosmo.sigma8 = 0.82
     cosmo.ns = 0.96
     #cosmo.Lambda = 0.169
-    cosmo.Lambda = cosmo.sigma8 * cosmo.Om0   # shape param Lambda = Omega_m * sigma_8
+    #cosmo.Lambda = cosmo.sigma8 * cosmo.Om0   # shape param Lambda = Omega_m * sigma_8
+    # shape parameter
+    cosmo.Lambda = cosmo.Om0 * cosmo.h * np.exp(
+        -cosmo.Ob0 * (1 + np.sqrt(2 * cosmo.h) / cosmo.Om0))
     return cosmo
 
 # Analytical functions
