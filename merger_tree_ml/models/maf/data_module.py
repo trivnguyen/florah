@@ -1,11 +1,12 @@
 
 import logging
+logger = logging.getLogger(__name__)
+
 import torch
 import pytorch_lightning as pl
 
-from .linear_model import LinearModel
-
-logger = logging.getLogger(__name__)
+from .model import MergerTreeMAF
+from .transform import Transform
 
 class DataModule(pl.LightningModule):
 
@@ -17,8 +18,8 @@ class DataModule(pl.LightningModule):
         logger.info("Run Hyperparameters:")
         for hparams in self.hparams:
             logger.info(f"{hparams}: {self.hparams[hparams]}")
-        self.model = LinearModel(**model_hparams)
-        self.transforms = None
+        self.model = MergerTreeMAF(**model_hparams)
+        self.transform = Transform(**transform_hparams)
         self.num_posteriors = num_posteriors
 
     def forward(self, x, *args, **kargs):
@@ -27,12 +28,13 @@ class DataModule(pl.LightningModule):
     def configure_optimizers(self):
         """ Initialize optimizer and LR scheduler """
         optimizer = torch.optim.AdamW(
-            self.parameters(), **self.hparams.optimizer_hparams)
+            self.parameters(), **self.hparams.optimizer_hparams['optimizer'])
         return {
             'optimizer': optimizer,
             'lr_scheduler': {
                 'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer, 'min', patience=4),
+                    optimizer, 'min',
+                    patience=self.hparams.optimizer_hparams['scheduler']['patience']),
                 'monitor': 'train_loss',
                 'interval': 'epoch',
                 'frequency': 1
@@ -41,7 +43,6 @@ class DataModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        x =  self.model(x)
         log_prob = self.model.maf.log_prob(y, context=x)
         loss = -log_prob.mean()
         self.log('train_loss', loss, on_epoch=True, batch_size=len(x))
@@ -49,17 +50,8 @@ class DataModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        x =  self.model(x)
         log_prob = self.model.maf.log_prob(y, context=x)
         loss = -log_prob.mean()
         self.log('val_loss', loss, on_epoch=True, batch_size=len(x))
         return loss
-
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        x, y = batch
-        x =  self.model(x)
-        y_pred = self.model.maf.sample(num_samples=self.num_posteriors, context=x)
-        if y is not None:
-            return y_pred, y
-        return y_pred
 

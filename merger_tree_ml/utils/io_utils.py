@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from torch.utils.data import TensorDataset
 
-from ..envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
+from ..envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH, DEFAULT_RAW_DATASET_PATH
 
 def get_all_dataset(prefix=DEFAULT_DATASET_PATH):
     return glob.glob(os.path.join(prefix, "*"))
@@ -92,38 +92,53 @@ def get_best_checkpoint(run_version_path):
             best_checkpoint = ckpt
     return best_checkpoint, min_loss
 
-def write_ds(path, features, graph_properties={}, headers={}):
+def write_dataset(path, features, ptr=None, headers={}):
     """ Write dataset into HDF5 file """
-    # we'll store all graphs in the same array, so we need pointer to separate graphs
-    ptr = np.cumsum([len(features[i]) for i in range(len(features))])
-    ptr = np.insert(ptr, 0, 0)
-    features = np.concatenate(features)
+    if ptr is None:
+        ptr = np.arange(len(list(features.values())[0]))
+
+    default_headers = {'feature_names': list(features.keys())}
+    headers.update(default_headers)
 
     with h5py.File(path, 'w') as f:
-        f.attrs.update(headers)
-        f.create_dataset('features', data=features)
+        # write pointers
         f.create_dataset('ptr', data=ptr)
-        for key in graph_properties.keys():
-            if graph_properties.get(key) is not None:
-                f.create_dataset(key, data=graph_properties[key])
 
-def read_ds(path):
-    """ Read stellar kinematics from dSph dataset """
+        # write features
+        for key in features:
+            feat = features[key]
+            ndim = feat[0].ndim
+            if ndim >= 1:
+                feat = np.concatenate(feat)
+            else:
+                feat = np.stack(feat)
+            dset = f.create_dataset(key, data=feat)
+            dset.attrs.update({'ndim': ndim})
+
+        # write headers
+        f.attrs.update(headers)
+
+def read_dataset(path, feature_names=None):
+    """ Read dataset from path """
     with h5py.File(path, 'r') as f:
         # read dataset attributes
-        attrs = dict(f.attrs)
+        headers = dict(f.attrs)
 
         # read pointer to each graph and concatenate graph features
         ptr = f['ptr'][:]
-        features = f['features'][:]
-        features = [features[ptr[i]:ptr[i+1]] for i  in range(len(ptr)-1)]
+        features = {}
 
-        # read labels
-        labels = f.get('labels')
-        if labels is not None:
-            labels = labels[:]
+        if feature_names is None:
+            feature_names = headers['feature_names']
 
-    features = np.array(features, dtype='object')
+        for key in feature_names:
+            dset = f[key]
+            ndim = dset.attrs['ndim']
+            feat = f[key][:]
 
-    return features, labels, attrs
+            if ndim > 0:
+                features[key] = [feat[ptr[i]:ptr[i+1]] for i  in range(len(ptr)-1)]
+            else:
+                features[key] = feat
 
+    return features, headers
