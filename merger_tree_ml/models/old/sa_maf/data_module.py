@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 import torch
 import pytorch_lightning as pl
 
-from .model import MergerTreeMAF
+from .model import AttentionMAF
 from .transform import Transform
 
 class DataModule(pl.LightningModule):
@@ -18,7 +18,7 @@ class DataModule(pl.LightningModule):
         for hparams in self.hparams:
             logger.info(f"{hparams}: {self.hparams[hparams]}")
         self.transform = Transform(**transform_hparams)
-        self.model = MergerTreeRNN(**model_hparams)
+        self.model = AttentionMAF(**model_hparams)
         self.num_posteriors = num_posteriors
 
     def forward(self, x, *args, **kargs):
@@ -41,24 +41,42 @@ class DataModule(pl.LightningModule):
         }
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        batch_dim = x.shape[0]
-        seq_len = x.shape[1]
-        context, _ = self(x)
-        context = context.reshape(batch_dim*seq_len, -1)
-        log_prob = self.model.maf.log_prob(y.reshape(batch_dim*seq_len, -1), context=context)
+        x, y, seq_len, mask = batch
+        batch_dim, max_len, _ = x.shape
+
+        # get context
+        context = self(x)
+        context = context.reshape(batch_dim * max_len, -1)
+
+        # get mask
+        y = y.reshape(batch_dim * max_len, -1)
+        mask = mask.reshape(-1)
+        # mask = torch.ones(batch_dim * max_len, dtype=torch.bool)
+
+        # calculate log likelihood and loss function
+        log_prob = self.model.maf.log_prob(y[mask], context=context[mask])
         loss = -log_prob.mean()
+
         self.log('train_loss', loss, on_epoch=True, batch_size=len(x))
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
-        batch_dim = x.shape[0]
-        seq_len = x.shape[1]
-        context, _ = self(x)
-        context = context.reshape(batch_dim*seq_len, -1)
-        log_prob = self.model.maf.log_prob(y.reshape(batch_dim*seq_len, -1), context=context)
+        x, y, seq_len, mask = batch
+        batch_dim, max_len, _ = x.shape
+
+        # get context
+        context = self(x)
+        context = context.reshape(batch_dim * max_len, -1)
+
+        # get mask
+        y = y.reshape(batch_dim * max_len, -1)
+        mask = mask.reshape(-1)
+        #mask = torch.ones(batch_dim * max_len, dtype=torch.bool)
+
+        # calculate log likelihood and loss function
+        log_prob = self.model.maf.log_prob(y[mask], context=context[mask])
         loss = -log_prob.mean()
+
         self.log('val_loss', loss, on_epoch=True, batch_size=len(x))
         return loss
 

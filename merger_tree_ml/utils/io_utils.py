@@ -92,53 +92,59 @@ def get_best_checkpoint(run_version_path):
             best_checkpoint = ckpt
     return best_checkpoint, min_loss
 
-def write_dataset(path, features, ptr=None, headers={}):
+def write_dataset(path, node_features, tree_features, ptr=None, headers={}):
     """ Write dataset into HDF5 file """
     if ptr is None:
-        ptr = np.arange(len(list(features.values())[0]))
+        ptr = np.arange(len(list(node_features.values())[0]))
 
-    default_headers = {'feature_names': list(features.keys())}
+    default_headers ={
+        "node_features": list(node_features.keys()),
+        "tree_features": list(tree_features.keys()),
+    }
+    default_headers['all_features'] = (
+        default_headers['node_features'] + default_headers['tree_features'])
     headers.update(default_headers)
 
     with h5py.File(path, 'w') as f:
         # write pointers
         f.create_dataset('ptr', data=ptr)
 
-        # write features
-        for key in features:
-            feat = features[key]
-            ndim = feat[0].ndim
-            if ndim >= 1:
-                feat = np.concatenate(feat)
-            else:
-                feat = np.stack(feat)
+        # write node features
+        for key in node_features:
+            feat = np.concatenate(node_features[key])
             dset = f.create_dataset(key, data=feat)
-            dset.attrs.update({'ndim': ndim})
+            dset.attrs.update({'type': 0})
+
+        # write tree features
+        for key in tree_features:
+            dset = f.create_dataset(key, data=tree_features[key])
+            dset.attrs.update({'type': 1})
 
         # write headers
         f.attrs.update(headers)
 
-def read_dataset(path, feature_names=None):
+def read_dataset(path, features_list=[]):
     """ Read dataset from path """
     with h5py.File(path, 'r') as f:
         # read dataset attributes
         headers = dict(f.attrs)
+        if len(features_list) == 0:
+            features_list = headers['all_features']
 
-        # read pointer to each graph and concatenate graph features
+        # read pointer to each tree
         ptr = f['ptr'][:]
-        features = {}
 
-        if feature_names is None:
-            feature_names = headers['feature_names']
+        # read node features
+        node_features = {}
+        for key in headers['node_features']:
+            if key in features_list:
+                feat = f[key][:]
+                node_features[key] = [feat[ptr[i]:ptr[i+1]] for i  in range(len(ptr)-1)]
 
-        for key in feature_names:
-            dset = f[key]
-            ndim = dset.attrs['ndim']
-            feat = f[key][:]
+        # read tree features
+        tree_features = {}
+        for key in headers['tree_features']:
+            if key in features_list:
+                tree_features[key] = f[key][:]
 
-            if ndim > 0:
-                features[key] = [feat[ptr[i]:ptr[i+1]] for i  in range(len(ptr)-1)]
-            else:
-                features[key] = feat
-
-    return features, headers
+    return node_features, tree_features, headers

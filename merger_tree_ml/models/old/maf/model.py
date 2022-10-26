@@ -25,7 +25,7 @@ class MergerTreeMAF(torch.nn.Module):
                                 features=features,
                                 hidden_features=hidden_features,
                                 context_features=context_features,
-                                num_blocks=2,
+                                num_blocks=num_blocks,
                                 use_residual_blocks=False,
                                 random_mask=False,
                                 activation=torch.tanh,
