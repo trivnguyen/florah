@@ -37,8 +37,8 @@ def sample_trees_recurrent(
                 time, dtype=torch.float32).repeat(num_trees, 1)
 
         # iteratively generate trees
+        seq_len = torch.ones(num_trees)
         for itree in range(max_len - 1):
-            seq_len = torch.repeat(itree + 1, num_trees)
 
             # transform x and sample
             x_transform = model.transform.x_scaler(x)
@@ -50,6 +50,8 @@ def sample_trees_recurrent(
             x[:, itree + 1, :num_feat_nt] = y_transform[:, itree]
             x[:, itree + 1, sub_dim] = (
                 x[:, itree, sub_dim] - x[:, itree + 1, sub_dim])
+
+            seq_len += 1
 
     if to_numpy:
         x = x.cpu().numpy()
