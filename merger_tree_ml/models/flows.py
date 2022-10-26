@@ -39,11 +39,11 @@ def build_maf(
 
 def _get_activation(activation: str) -> Callable[[torch.Tensor], torch.Tensor]:
     if activation == 'tanh':
-        return F.tanh
+        return torch.tanh
     elif activation == 'relu':
-        return F.relu
+        return torch.relu
     elif activation == 'sigmoid':
-        return F.sigmoid
+        return torch.sigmoid
     else:
         raise RuntimeError(
             "activation should be tanh/relu/sigmoid, not {}".format(activation))
