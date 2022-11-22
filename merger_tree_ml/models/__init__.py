@@ -5,10 +5,12 @@ from . import transforms
 from . import modules
 from . import recurrent_maf
 from . import attention_maf
+from . import recurrent_maf_decay
 
 ALL_MODELS = {
     "AttentionMAF": attention_maf,
     "RecurrentMAF": recurrent_maf,
+    "RecurrentMAFDecay": recurrent_maf_decay,
 }
 
 def get_model_arch(model_arch):
