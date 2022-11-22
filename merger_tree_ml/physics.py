@@ -1,5 +1,6 @@
 
 import numpy as np
+import scipy.interpolate as interpolate
 import astropy
 import astropy.units as u
 
@@ -14,7 +15,6 @@ def Pk(z, cosmo=DEFAULT_COSMO):
     Pk = cosmology.power.LinearPower(cosmo, z, transfer='CLASS')
     return Pk
 
-
 def calc_omega(z, cosmo=DEFAULT_COSMO):
     """ Calculate omega w(z), the natural time variable in EPS. Define as
 
@@ -26,6 +26,13 @@ def calc_omega(z, cosmo=DEFAULT_COSMO):
         cosmo.Omega0_m, cosmo.Omega0_lambda, cosmo.Omega0_k)
     a = 1 / (1 + z)
     return 1.6865 / bg.D1(a)
+
+def calc_redshift(omega, cosmo=DEFAULT_COSMO):
+    """ Calculate reshift z from omega w(z) by interpolation """
+    z_arr = np.linspace(0, 1000, 10000)
+    omega_arr = calc_omega(z_arr, cosmo=cosmo)
+    return interpolate.interp1d(omega_arr, z_arr)(omega)
+
 
 def m2r(m, z, cosmo=DEFAULT_COSMO):
     """ Convert mass to radius using the top hat kernel
