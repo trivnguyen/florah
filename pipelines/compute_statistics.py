@@ -11,13 +11,15 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import corner
 import seaborn as sns
+from scipy.stats import binned_statistic
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 
 plt.style.use('/mnt/home/tnguyen/mplstyle/latex_plot_style.mplstyle')
 
 import utils
-from merger_tree_ml.utils import io_utils
+from merger_tree_ml import models
 from merger_tree_ml.models import torchutils
+from merger_tree_ml.utils import io_utils
 from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 
@@ -53,11 +55,13 @@ def parse_cmd():
         "--run-version", required=False, type=str, default="best",
         help="Run version")
     parser.add_argument(
+        "--is-svar", required=False, action="store_true",
+        help="Enable if tree is Svar")
+    parser.add_argument(
         "--multiplier", required=False, type=int, default=10,
         help="Generation size: data_size * multiplier")
 
     return parser.parse_args()
-
 
 def calc_t_form(trees, t, x=0.5):
     """ Calculate formation time at mass fraction x"""
@@ -68,7 +72,6 @@ def calc_t_form(trees, t, x=0.5):
                 -np.log10(x)) for dtree in dtrees
     ])
     return tx.T
-
 
 def plot_accretion_mass(
         trees_nn, trees_nbody, plot_dim=0, log=True,
@@ -106,7 +109,7 @@ def plot_accretion_mass(
 
     if log:
         axes[0, 0].set_yscale('log')
-    # axes[0, 0].set_ylim(1e-3, 50)
+    axes[0, 0].set_ylim(1e-3, 1e3)
 
     # for i in range(n_bins):
         # ax = axes.ravel()[i]
@@ -126,7 +129,6 @@ def plot_accretion_mass(
         fig.savefig(save_path, dpi=200, bbox_inches='tight')
 
     return fig, axes
-
 
 def plot_tform(
         trees_nn, trees_nbody, time, plot_dim=0,
@@ -275,40 +277,47 @@ def plot_tform_spread(
         fig.savefig(save_path, dpi=200, bbox_inches='tight')
     return fig, axes
 
-def main():
-    FLAGS = parse_cmd()
+def main(
+        model_arch, box_name, run_name, dataset_name,run_prefix,
+        dataset_prefix, plot_prefix, run_version, is_svar, multiplier
+    ):
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # get best checkpoint
     checkpoint_path, loss = io_utils.get_best_checkpoint(
         io_utils.get_run(
-            FLAGS.run_name, prefix=FLAGS.run_prefix, version=FLAGS.run_version))
+            run_name, prefix=run_prefix, version=run_version))
 
     print("read checkpoint from {}".format(checkpoint_path))
 
     # get model architecture and read in checkpoint
-    model_arch = utils.get_model_arch(FLAGS.model_arch)
+    model_arch = models.get_model_arch(model_arch)
     model = model_arch.DataModule.load_from_checkpoint(checkpoint_path)
     model = model.to(DEVICE)
     model = model.eval()
 
     # read in trees and root data
     trees_padded, seq_len = utils.read_dataset(
-        FLAGS.dataset_name, FLAGS.dataset_prefix)
-    roots = trees_padded[:, 0]
-    times = trees_padded[..., -1]
+        dataset_name, dataset_prefix)
+    times = trees_padded[..., -1].copy()
     max_len = np.max(seq_len)
     time_max_len = times[np.argmax(seq_len)]
 
-    if not model.transform.use_t:
-        roots = roots[:, :-1]
-        time_sample = None
-    else:
+    if model.transform.use_t:
+        roots = trees_padded[:, 0].copy()
         time_sample = time_max_len
+    elif model.transform.use_dt:
+        roots = trees_padded[:, 0].copy()
+        roots[:, -1] = trees_padded[:, 1, -1] - roots[:, -1]
+        time_sample = time_max_len[1:] - time_max_len[:-1]
+        time_sample = np.append(time_sample, 0)
+    else:
+        roots = trees_padded[:, 0, :-1].copy()
+        time_sample = None
 
     # get bins
-    bins = utils.DEFAULT_BINS[FLAGS.box_name]
-    widths = utils.DEFAULT_WIDTHS[FLAGS.box_name]
+    bins = utils.DEFAULT_BINS[box_name]
+    widths = utils.DEFAULT_WIDTHS[box_name]
     num_bins = len(bins)
 
     # get N-body trees and generate DL trees from roots
@@ -317,33 +326,64 @@ def main():
     trees_nn = []
     roots_nn = []
     print("Low   High   Selected")
-    for i in range(num_bins):
-        low = bins[i] - widths[i]
-        high = bins[i] + widths[i]
-        select = (low <= roots[..., 0]) & (roots[..., 0] < high)
-        print(low, high, np.sum(select))
 
-        # N-body trees
-        trees_nbody.append(trees_padded[select])
-        roots_nbody.append(roots[select])
+    if is_svar:
+        svar_to_mass, mass_to_svar = utils.create_interpolator(
+            time_max_len, is_omega=True)
 
-        # DL trees
-        root = np.repeat(roots[select], FLAGS.multiplier, axis=0)
-        roots_nn.append(root)
-        if FLAGS.model_arch == "AttentionMAF":
+        roots_svar = roots.copy()
+        roots[..., 0] = svar_to_mass(roots[..., 0], time_max_len[0])
+        trees_padded[..., 0] = svar_to_mass(trees_padded[..., 0], time_max_len)
+
+        for i in range(num_bins):
+            low = bins[i] - widths[i]
+            high = bins[i] + widths[i]
+            select = (low <= roots[..., 0]) & (roots[..., 0] < high)
+            print(low, high, np.sum(select))
+
+            if np.sum(select) == 0:
+                continue
+
+            # N-body trees
+            trees_nbody.append(trees_padded[select])
+            roots_nbody.append(roots[select])
+
+            # DL trees
+            root = np.repeat(roots[select], multiplier, axis=0)
+            root_svar = np.repeat(roots_svar[select], multiplier, axis=0)
+            roots_nn.append(root)
+            tree = torchutils.sample_trees(
+                model, roots=root_svar, max_len=max_len,
+                time=time_sample, device=DEVICE
+            )
+            tree[..., 0] = svar_to_mass(tree[..., 0], time_max_len)
+            trees_nn.append(tree)
+    else:
+        for i in range(num_bins):
+            low = bins[i] - widths[i]
+            high = bins[i] + widths[i]
+            select = (low <= roots[..., 0]) & (roots[..., 0] < high)
+            print(low, high, np.sum(select))
+
+            if np.sum(select) == 0:
+                continue
+
+            # N-body trees
+            trees_nbody.append(trees_padded[select])
+            roots_nbody.append(roots[select])
+
+            # DL trees
+            root = np.repeat(roots[select], multiplier, axis=0)
+            roots_nn.append(root)
             trees_nn.append(
-                torchutils.sample_trees_attention(
-                    model, root, max_len=max_len, time=time_sample, device=DEVICE))
-        elif FLAGS.model_arch == "RecurrentMAF":
-            trees_nn.append(
-                torchutils.sample_trees_recurrent(
-                    model, root, max_len=max_len, time=time_sample, device=DEVICE))
-        else:
-            raise RunTimeError(
-                "model arch {} has no sampling function".format(FLAGS.model_arch))
+                torchutils.sample_trees(
+                    model, roots=root, max_len=max_len,
+                    time=time_sample, device=DEVICE
+                    )
+                )
 
     # Start plotting
-    plot_dir = os.path.join(FLAGS.plot_prefix, FLAGS.run_name)
+    plot_dir = os.path.join(plot_prefix, run_name)
     os.makedirs(plot_dir, exist_ok=True)
 
     # Plot mass accretion distribution
@@ -375,7 +415,19 @@ def main():
         ylabel="frequency",
         save_path=os.path.join(plot_dir, "formation_time_spread.png")
     )
-
+    plt.close()
 
 if __name__ == "__main__":
-    main()
+    FLAGS = parse_args()
+    main(
+        model_arch=FLAGS.model_arch,
+        box_name=FLAGS.box_name,
+        run_name=FLAGS.run_name,
+        dataset_name=FLAGS.dataset_name,
+        run_prefix=FLAGS.run_prefix,
+        dataset_prefix=FLAGS.dataset_prefix,
+        plot_prefix=FLAGS.plot_prefix,
+        run_version=FLAGS.run_version,
+        is_svar=FLAGS.is_svar,
+        multiplier=FLAGS.multiplier
+    )

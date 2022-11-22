@@ -22,6 +22,8 @@ from merger_tree_ml.utils import io_utils
 from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 
+DEFAULT_ROOT_ID = (5, 10, 15)
+
 # Parser cmd argument
 def parse_cmd():
     parser = argparse.ArgumentParser(
@@ -130,57 +132,6 @@ def plot_trees_comparison(
         fig.savefig(save_path, dpi=200, bbox_inches='tight')
     return fig, axes
 
-def plot_trees_samples(
-        trees_nn, trees_nbody, roots_nn, roots_nbody, num_samples=100,
-        time=None, plot_dim=0, sub_root=False, xlabel="", ylabel="",
-        legend=True, save_path=None
-    ):
-    """ Plot trees. Comparing N-body and NN trees"""
-
-    fontsize = 20
-    fig, axes = plt.subplots(
-        1, 2, figsize=(12, 8), sharex=True, sharey=True)
-
-    shuffle_nn = np.random.permutation(len(trees_nn))[:num_samples]
-    shuffle_nbody = np.random.permutation(len(trees_nbody))[:num_samples]
-    if sub_root:
-        x_nn = trees_nn[..., plot_dim] - roots_nn[..., plot_dim, np.newaxis]
-        x_nbody = trees_nbody[..., plot_dim] - roots_nbody[..., plot_dim, np.newaxis]
-    else:
-        x_nn = trees_nn[..., plot_dim]
-        x_nbody = trees_nbody[..., plot_dim]
-
-    x_nn = x_nn[shuffle_nn]
-    x_nbody = x_nbody[shuffle_nbody]
-
-    if time is None:
-        time = np.arange(len(x_nn.shape[1]))
-
-    for i in range(len(x_nn)):
-        # plot DL trees
-        axes[0].plot(time, x_nn[i], color='k', alpha=0.5)
-
-    for i in range(len(x_nbody)):
-        # plot N-body trees
-        axes[1].plot(time, x_nbody[i], color='k', alpha=0.5)
-
-    axes[0].set_xlabel(xlabel, fontsize=fontsize)
-    axes[1].set_xlabel(xlabel, fontsize=fontsize)
-    axes[0].set_ylabel(ylabel, fontsize=fontsize)
-    axes[0].set_title(r'\bf DL Trees', fontsize=fontsize, y=1.01)
-    axes[1].set_title(r'\bf N-body Trees', fontsize=fontsize, y=1.01)
-
-    for ax in axes:
-        ax.yaxis.set_minor_locator(AutoMinorLocator(5))
-        ax.xaxis.set_minor_locator(AutoMinorLocator(5))
-        ax.grid(which='major', ls='--', color='k', alpha=0.5)
-    axes[0].invert_xaxis()
-    fig.tight_layout()
-    fig.subplots_adjust(wspace=0)
-
-    if save_path is not None:
-        fig.savefig(save_path, dpi=200, bbox_inches='tight')
-    return fig, axes
 
 def plot_trees_difference(
         trees_nn, trees_nbody, roots_nn, roots_nbody, time=None,
@@ -245,148 +196,162 @@ def main(
     model = model.to(DEVICE)
     model = model.eval()
 
-    # read in trees and root data
-    trees_padded, seq_len = utils.read_dataset(
-        dataset_name, dataset_prefix)
-    times = trees_padded[..., -1].copy()
-    max_len = np.max(seq_len)
-    time_max_len = times[np.argmax(seq_len)]
+    # iterate over all root ids
+    for root_id in DEFAULT_ROOT_ID:
+        print("root id: {}".format(root_id))
 
-    if model.transform.use_t:
-        roots = trees_padded[:, 0].copy()
-        time_sample = time_max_len
-    elif model.transform.use_dt:
-        roots = trees_padded[:, 0].copy()
-        roots[:, -1] = trees_padded[:, 1, -1] - roots[:, -1]
-        time_sample = time_max_len[1:] - time_max_len[:-1]
-        time_sample = np.append(time_sample, 0)
-    else:
-        roots = trees_padded[:, 0, :-1].copy()
-        time_sample = None
 
-    # get bins
-    bins = utils.DEFAULT_BINS[box_name]
-    widths = utils.DEFAULT_WIDTHS[box_name]
-    num_bins = len(bins)
+        # read in trees and root data
+        trees_padded, seq_len = utils.read_dataset(
+            dataset_name, dataset_prefix)
+        times = trees_padded[..., -1].copy()
+        max_len = np.max(seq_len)
+        time_max_len = times[np.argmax(seq_len)]
 
-    # get N-body trees and generate DL trees from roots
-    trees_nbody = []
-    roots_nbody = []
-    trees_nn = []
-    roots_nn = []
-    print("Low   High   Selected")
+        trees_padded = trees_padded[:, root_id:]
+        time_max_len = time_max_len[root_id:]
+        max_len = max_len - root_id
 
-    if is_svar:
-        svar_to_mass, mass_to_svar = utils.create_interpolator(
-            time_max_len, is_omega=True)
+        if model.transform.use_t:
+            roots = trees_padded[:, 0].copy()
+            time_sample = time_max_len
+        elif model.transform.use_dt:
+            roots = trees_padded[:, 0].copy()
+            roots[:, -1] = trees_padded[:, 1, -1] - roots[:, -1]
+            time_sample = time_max_len[1:] - time_max_len[:-1]
+            time_sample = np.append(time_sample, 0)
+        else:
+            roots = trees_padded[:, 0, :-1].copy()
+            time_sample = None
 
-        roots_svar = roots.copy()
-        roots[..., 0] = svar_to_mass(roots[..., 0], time_max_len[0])
-        trees_padded[..., 0] = svar_to_mass(trees_padded[..., 0], time_max_len)
+        # if model.transform.use_t:
+        #     roots = trees_padded[:, root_id].copy()
+        #     time_sample = time_max_len[root_id:]
+        # elif model.transform.use_dt:
+        #     roots = trees_padded[:, root_id].copy()
+        #     roots[:, -1] = trees_padded[:, root_id+1, -1] - roots[:, -1]
+        #     time_sample = time_max_len[1:] - time_max_len[:-1]
+        #     time_sample = np.append(time_sample, 0)
+        #     time_sample = time_sample[root_id:]
+        # else:
+        #     roots = trees_padded[:, root_id, :-1].copy()
+        #     time_sample = None
+        # time_max_len = time_max_len[root_id]
 
-        for i in range(num_bins):
-            low = bins[i] - widths[i]
-            high = bins[i] + widths[i]
-            select = (low <= roots[..., 0]) & (roots[..., 0] < high)
-            print(low, high, np.sum(select))
+        # get bins
+        bins = utils.DEFAULT_BINS[box_name]
+        widths = utils.DEFAULT_WIDTHS[box_name]
+        num_bins = len(bins)
 
-            if np.sum(select) == 0:
-                continue
+        # get N-body trees and generate DL trees from roots
+        trees_nbody = []
+        roots_nbody = []
+        trees_nn = []
+        roots_nn = []
+        print("Low   High   Selected")
+        if is_svar:
+            svar_to_mass, mass_to_svar = utils.create_interpolator(
+                time_max_len, is_omega=True)
 
-            # N-body trees
-            trees_nbody.append(trees_padded[select])
-            roots_nbody.append(roots[select])
+            roots_svar = roots.copy()
+            roots[..., 0] = svar_to_mass(roots[..., 0], time_max_len[0])
+            trees_padded[..., 0] = svar_to_mass(trees_padded[..., 0], time_max_len)
 
-            # DL trees
-            root = np.repeat(roots[select], multiplier, axis=0)
-            root_svar = np.repeat(roots_svar[select], multiplier, axis=0)
-            roots_nn.append(root)
-            tree = torchutils.sample_trees(
-                model, roots=root_svar, max_len=max_len,
-                time=time_sample, device=DEVICE
-            )
-            tree[..., 0] = svar_to_mass(tree[..., 0], time_max_len)
-            trees_nn.append(tree)
-    else:
-        for i in range(num_bins):
-            low = bins[i] - widths[i]
-            high = bins[i] + widths[i]
-            select = (low <= roots[..., 0]) & (roots[..., 0] < high)
-            print(low, high, np.sum(select))
+            for i in range(num_bins):
+                low = bins[i] - widths[i]
+                high = bins[i] + widths[i]
+                select = (low <= roots[..., 0]) & (roots[..., 0] < high)
+                print(low, high, np.sum(select))
 
-            if np.sum(select) == 0:
-                continue
+                if np.sum(select) == 0:
+                    continue
 
-            # N-body trees
-            trees_nbody.append(trees_padded[select])
-            roots_nbody.append(roots[select])
+                # N-body trees
+                trees_nbody.append(trees_padded[select])
+                roots_nbody.append(roots[select])
 
-            # DL trees
-            root = np.repeat(roots[select], multiplier, axis=0)
-            roots_nn.append(root)
-            trees_nn.append(
-                torchutils.sample_trees(
-                    model, roots=root, max_len=max_len,
+                # DL trees
+                root = np.repeat(roots[select], multiplier, axis=0)
+                root_svar = np.repeat(roots_svar[select], multiplier, axis=0)
+                roots_nn.append(root)
+                tree = torchutils.sample_trees(
+                    model, roots=root_svar, max_len=max_len,
                     time=time_sample, device=DEVICE
-                    )
                 )
+                tree[..., 0] = svar_to_mass(tree[..., 0], time_max_len)
+                trees_nn.append(tree)
+        else:
+            for i in range(num_bins):
+                low = bins[i] - widths[i]
+                high = bins[i] + widths[i]
+                select = (low <= roots[..., 0]) & (roots[..., 0] < high)
+                print(low, high, np.sum(select))
 
-    # Start plotting
-    plot_dir = os.path.join(plot_prefix, run_name)
-    os.makedirs(plot_dir, exist_ok=True)
+                if np.sum(select) == 0:
+                    continue
 
-    # Plot tree comparison side-by-side
-    plot_trees_comparison(
-        trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
-        plot_dim=0, sub_root=True,
-        xlabel=r"Time Variable",
-        ylabel=r"$\log_{10}(M / M_0)$",
-        legend=True,
-        save_path=os.path.join(plot_dir, "mass_evo_comparison.png")
-    )
-    plot_trees_comparison(
-        trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
-        plot_dim=1, sub_root=False,
-        xlabel=r"Time Variable",
-        ylabel=r"$C_\mathrm{vir}$",
-        legend=True,
-        save_path=os.path.join(plot_dir, "cvir_evo_comparison.png")
-    )
+                # N-body trees
+                trees_nbody.append(trees_padded[select])
+                roots_nbody.append(roots[select])
 
-    # Plot tree difference
-    plot_trees_difference(
-        trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
-        plot_dim=0, sub_root=True,
-        xlabel=r"Time Variable",
-        ylabel=r"$\Delta\{\log_{10}(M / M_0)\}$",
-        legend=True,
-        save_path=os.path.join(plot_dir, "mass_evo_difference.png")
-    )
-    plot_trees_difference(
-        trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
-        plot_dim=1, sub_root=False,
-        xlabel=r"Time Variable",
-        ylabel=r"$\Delta C_\mathrm{vir}$",
-        legend=True,
-        save_path=os.path.join(plot_dir, "cvir_evo_difference.png")
-    )
+                # DL trees
+                root = np.repeat(roots[select], multiplier, axis=0)
+                roots_nn.append(root)
+                trees_nn.append(
+                    torchutils.sample_trees(
+                        model, roots=root, max_len=max_len,
+                        time=time_sample, device=DEVICE
+                        )
+                    )
 
-    for i in range(len(trees_nn)):
-        plot_trees_samples(
-            trees_nn[i], trees_nbody[i], roots_nn[i], roots_nbody[i],
-            num_samples=100, time=time_max_len,
+        # Start plotting
+        plot_dir = os.path.join(plot_prefix, run_name)
+        os.makedirs(plot_dir, exist_ok=True)
+
+        # Plot tree comparison side-by-side
+        plot_trees_comparison(
+            trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
             plot_dim=0, sub_root=True,
             xlabel=r"Time Variable",
             ylabel=r"$\log_{10}(M / M_0)$",
             legend=True,
-            save_path=os.path.join(plot_dir, f"mass_evo_bin{i}.png")
+            save_path=os.path.join(
+                plot_dir, "mass_evo_self_similarity_root{}.png".format(root_id))
         )
-    plt.close()
+        plot_trees_comparison(
+            trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
+            plot_dim=1, sub_root=False,
+            xlabel=r"Time Variable",
+            ylabel=r"$C_\mathrm{vir}$",
+            legend=True,
+            save_path=os.path.join(
+                plot_dir, "cvir_evo_self_similarity_root{}.png".format(root_id))
+        )
 
+        # Plot tree difference
+        plot_trees_difference(
+            trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
+            plot_dim=0, sub_root=True,
+            xlabel=r"Time Variable",
+            ylabel=r"$\Delta\{\log_{10}(M / M_0)\}$",
+            legend=True,
+            save_path=os.path.join(
+                plot_dir, "mass_evo_difference_self_similarity_root{}.png".format(root_id))
+        )
+        plot_trees_difference(
+            trees_nn, trees_nbody, roots_nn, roots_nbody, time=time_max_len,
+            plot_dim=1, sub_root=False,
+            xlabel=r"Time Variable",
+            ylabel=r"$\Delta C_\mathrm{vir}$",
+            legend=True,
+            save_path=os.path.join(
+                plot_dir, "cvir_evo_difference_self_similarity_root{}.png".format(root_id))
+        )
+        plt.close()
 
 if __name__ == "__main__":
 
-    FLAGS = parse_cmd()
+    FLAGS = parse_args()
     main(
         model_arch=FLAGS.model_arch,
         box_name=FLAGS.box_name,
@@ -399,4 +364,5 @@ if __name__ == "__main__":
         is_svar=FLAGS.is_svar,
         multiplier=FLAGS.multiplier
     )
+
 

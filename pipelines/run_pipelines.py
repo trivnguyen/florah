@@ -5,14 +5,8 @@ import json
 import argparse
 
 import utils
-import sample_and_plot_trees
-import compute_statistics
 from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
-ALL_PIPELINES = {
-    "sample_and_plot_trees": sample_and_plot_trees,
-    "compute_statistics": compute_statistics,
-}
 
 # Parser cmd argument
 def parse_cmd():
@@ -33,6 +27,9 @@ def parse_cmd():
 
     # optional args
     parser.add_argument(
+        "--pipeline", required=False, type=str,
+        help="Pipeline to run. If not given, run all pipelines")
+    parser.add_argument(
         "--run-prefix", required=False, type=str, default=DEFAULT_RUN_PATH,
         help="Prefix of run. Output is saved at \"run_prefix/run_name\".")
     parser.add_argument(
@@ -46,6 +43,9 @@ def parse_cmd():
         "--run-version", required=False, type=str, default="best",
         help="Run version")
     parser.add_argument(
+        "--is-svar", required=False, action="store_true",
+        help="Enable if tree is Svar")
+    parser.add_argument(
         "--multiplier", required=False, type=int, default=10,
         help="Generation size: data_size * multiplier")
 
@@ -56,9 +56,39 @@ if __name__ == "__main__":
     """ Run all pipelines """
     FLAGS = parse_cmd()
 
-    print("Running all pipelines")
-    print("---------------------")
-    for pipeline in ALL_PIPELINES:
-        print("Running: {}".format(pipeline))
-        print("----------------------------------")
-        ALL_PIPELINES[pipeline].main()
+
+    if FLAGS.pipeline is not None:
+        print("Running pipeline: {}".format(FLAGS.pipeline))
+        if FLAGS.pipeline not in utils.ALL_PIPELINES:
+            raise KeyError("Pipeline {} does not exist".format(FLAGS.pipeline))
+        utils.ALL_PIPELINES[FLAGS.pipeline].main(
+            model_arch=FLAGS.model_arch,
+            box_name=FLAGS.box_name,
+            run_name=FLAGS.run_name,
+            dataset_name=FLAGS.dataset_name,
+            run_prefix=FLAGS.run_prefix,
+            dataset_prefix=FLAGS.dataset_prefix,
+            plot_prefix=FLAGS.plot_prefix,
+            run_version=FLAGS.run_version,
+            is_svar=FLAGS.is_svar,
+            multiplier=FLAGS.multiplier
+        )
+
+    else:
+        print("Running all pipelines")
+        print("---------------------")
+        for pipeline in utils.ALL_PIPELINES:
+            print("Running: {}".format(pipeline))
+            print("----------------------------------")
+            utils.ALL_PIPELINES[pipeline].main(
+                model_arch=FLAGS.model_arch,
+                box_name=FLAGS.box_name,
+                run_name=FLAGS.run_name,
+                dataset_name=FLAGS.dataset_name,
+                run_prefix=FLAGS.run_prefix,
+                dataset_prefix=FLAGS.dataset_prefix,
+                plot_prefix=FLAGS.plot_prefix,
+                run_version=FLAGS.run_version,
+                is_svar=FLAGS.is_svar,
+                multiplier=FLAGS.multiplier
+            )
