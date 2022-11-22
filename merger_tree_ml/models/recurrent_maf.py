@@ -13,6 +13,7 @@ class DataModule(modules.MAFModule):
     """
     DataModule for Recurrent-MAF model
     """
+    arch_type = "RecurrentMAF"
     def __init__(
             self, model_hparams: Optional[dict] = None,
             transform_hparams: Optional[dict] = None,
@@ -113,17 +114,18 @@ class RecurrentMAF(torch.nn.Module):
 
         """
         hout = []  # list of output hidden states
+        total_length = x.shape[1]
 
         # iterate over all recurrent layers
         for i in range(len(self.rnn)):
-            # pack sequence, pass through recurrent layer , and unpack
+            # pack sequence, pass through recurrent layer, and unpack
             x = torch.nn.utils.rnn.pack_padded_sequence(
                 x, seq_len.cpu(), batch_first=True,
                 enforce_sorted=False)
             x, h = self.rnn[i](
                 x, h0[i] if h0 is not None else None)
             x, _ = torch.nn.utils.rnn.pad_packed_sequence(
-                x, batch_first=True)
+                x, batch_first=True, total_length=total_length)
 
             # activation
             if i != len(self.rnn) - 1:

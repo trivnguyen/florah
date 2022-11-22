@@ -14,6 +14,7 @@ class DataModule(modules.MAFModule):
     """
     DataModule for Attention-MAF model
     """
+    arch_type = "AttentionMAF"
     def __init__(
             self, model_hparams: Optional[dict] = None,
             transform_hparams: Optional[dict] = None,
@@ -125,6 +126,7 @@ class AttentionMAF(torch.nn.Module):
                  return_context: bool = False) -> FloatTensor:
         """ Calculate log-likelihood from batch """
         x, y, seq_len, mask = batch
+        max_len = x.shape[1]
 
         # apply forward pass and return context for MAF
         context = self(x, attn_mask=torchutils.look_ahead_mask(max_len))

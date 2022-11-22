@@ -6,9 +6,9 @@ import numpy as np
 class StandardScaler(torch.nn.Module):
     """ Standard scaling transformation """
     def __init__(
-            self, n: int, with_loc: bool = True, 
+            self, n: int, with_loc: bool = True,
             with_scale: bool = True, **kargs) -> None:
-        """ 
+        """
         Parameters
         ----------
             n: int
@@ -113,15 +113,15 @@ class Preprocess(torch.nn.Module):
             if self.use_t:
                 x = [
                     np.hstack([
-                        trees[i][:-1], times[i][:-1]]) for i in range(len(trees)
-                    )]
+                        trees[i][:-1], times[i][:-1]]) for i in range(len(trees))
+                    ]
             if self.use_dt:
                 x = [
                     np.hstack([
                         trees[i][:-1],
                         times[i][1:] - times[i][:-1]
-                        ]) for i in range(len(trees)
-                    )]
+                        ]) for i in range(len(trees))
+                    ]
         else:
             x = [trees[i][:-1] for i in range(len(trees))]
         y = [trees[i][1:] for i in range(len(trees))]
