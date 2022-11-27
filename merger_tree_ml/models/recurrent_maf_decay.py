@@ -25,16 +25,38 @@ class DataModule(modules.MAFModule):
             RecurrentMAFDecay, transforms.Preprocess, model_hparams,
             transform_hparams, optimizer_hparams)
 
+class TimeEmbedding(torch.nn.Module):
+    r""" Time embedding neural network.
+    .. math::
+        PE() =
+    where :math:`d` is the embedding dimension
+    """
+    def __init__(
+        self, embed_channels: int) -> None:
+        """
+        Parameters
+        ----------
+        embed_channels: int
+            Number of embedded dimension
+        """
+        super(TimeEmbedding, self).__init__()
+
+        self.embed_channels = embed_channels
+        self.linear_embed = torch.nn.Linear(1, embed_channels)
+
+    def forward(self, t: Tensor) -> Tensor:
+        return torch.cos(self.linear_embed(t))
+
 
 class RecurrentMAFDecay(torch.nn.Module):
     """ GRU with decay and MAF architecture for merger tree generation """
 
     def __init__(
-            self,
-            in_channels: int, out_channels: int, in_time_channels: int,
-            num_layers: int, hidden_features: int,
-            num_layers_flows: int, hidden_features_flows: int,
-            num_blocks: int, softplus: bool = False
+            self, in_channels: int, out_channels: int,
+            hidden_features: int = 64, num_layers: int = 1,
+            time_embed_channels: Optional[int] = None,
+            num_layers_flows: int = 1, hidden_features_flows: int = 64,
+            num_blocks: int = 2, softplus: bool = False
         ) -> None:
         """
         Parameters
@@ -43,8 +65,8 @@ class RecurrentMAFDecay(torch.nn.Module):
                 Number of input channels
             out_channels: int
                 Number of output channels
-            in_time_channels: int
-                Number of time channels
+            time_embed_channels: int
+                Number of time embedding channels
             num_layers: int
                 Number of recurrent hidden layers
             hidden_features: int
@@ -60,16 +82,21 @@ class RecurrentMAFDecay(torch.nn.Module):
         """
         super(RecurrentMAFDecay, self).__init__()
 
+        # time embedding layers, currently set to torch.nn.Identity
+        if time_embed_channels is None:
+            self.embedding_net = torch.nn.Identity()
+            in_channels = in_channels + 1
+        else:
+            self.embedding_net = TimeEmbedding(time_embed_channels)
+            in_channels = in_channels + time_embed_channels
+
         # recurrent layers
         self.rnn = torch.nn.ModuleList()
         for i in range(num_layers):
             n_in = in_channels if i==0 else hidden_features
             n_out = hidden_features
             self.rnn.append(
-                grud.GRUD(n_in, n_out, in_time_channels, batch_first=True))
-
-        # time embedding network, currently set to torch.nn.Identity
-        self.embedding_net = torch.nn.Identity()
+                grud.GRUD(n_in, n_out, 1, batch_first=True))
 
         # MAF blocks
         self.maf_blocks = flows.build_maf(
