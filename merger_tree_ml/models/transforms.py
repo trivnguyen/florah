@@ -69,8 +69,9 @@ class StandardScaler(torch.nn.Module):
 class Preprocess(torch.nn.Module):
     """ Preprocessing module for merger tree data """, Tuple
     def __init__(
-            self, nx: int, ny: int, sub_dim: Optional[List[int]] = None,
-            use_t: bool = True, use_dt: bool = False) -> None:
+            self, nx: int, ny: int, nt: int = 1,
+            sub_dim: Optional[List[int]] = None, use_dt: bool = False,
+            use_t: bool = False) -> None:
         """
         Parameters
         ----------
@@ -78,19 +79,19 @@ class Preprocess(torch.nn.Module):
                 Number of dimensions for input series X
             ny: int
                 Number of dimensions for output series Y
-            use_t: bool
-                If True, add time to input X. Default: True
+            nt: int
+                Number of dimensions for time series T. Default: 1
             use_dt: bool
-                If True, add time difference to input X. Default: False
+                Deprecated.
+            use_t: bool
+                Deprecated.
         """
         super(Preprocess, self).__init__()
 
-        nx = nx + int(use_t) + int(use_dt)
-
         self.x_scaler = StandardScaler(nx, dim=[0, 1])
         self.y_scaler = StandardScaler(ny, dim=[0, 1])
-        self.use_t = use_t
-        self.use_dt = use_dt
+        self.t_scaler = StandardScaler(nt, dim=[0, 1])
+        self.use_t = True
         self.sub_dim = sub_dim if sub_dim is not None else []
 
     def forward(self, *args, **kargs):
@@ -108,33 +109,22 @@ class Preprocess(torch.nn.Module):
         # get input and output series from data
         # output is input shifted right
         trees = data.get("x")
-        times = data.get("t")
-        if self.use_t or self.use_dt:
-            if self.use_t:
-                x = [
-                    np.hstack([
-                        trees[i][:-1], times[i][:-1]]) for i in range(len(trees))
-                    ]
-            if self.use_dt:
-                x = [
-                    np.hstack([
-                        trees[i][:-1],
-                        times[i][1:] - times[i][:-1]
-                        ]) for i in range(len(trees))
-                    ]
-        else:
-            x = [trees[i][:-1] for i in range(len(trees))]
+        x = [trees[i][:-1] for i in range(len(trees))]
         y = [trees[i][1:] for i in range(len(trees))]
+        t = data.get("t")
 
         # pad sequence to maximum length
         seq_len = np.array([len(x[i]) for i in range(len(x))])
         max_len = np.max(seq_len)
         x_padded = np.zeros((len(x), max_len, *x[0].shape[1:]))
-        y_padded = np.zeros((len(y), max_len, *y[0].shape[1:]))
-        mask = np.zeros((len(y), max_len), dtype=np.bool)
+        y_padded = np.zeros((len(x), max_len, *y[0].shape[1:]))
+        t_padded = np.zeros((len(x), max_len + 1, *t[0].shape[1:]))
+        mask = np.zeros((len(x), max_len), dtype=np.bool)
+
         for i in range(len(x)):
             x_padded[i, :seq_len[i]] = x[i]
             y_padded[i, :seq_len[i]] = y[i]
+            t_padded[i, :seq_len[i] + 1] = t[i]
             mask[i, :seq_len[i]] = True
 
         y_padded[..., self.sub_dim] = (
@@ -143,6 +133,7 @@ class Preprocess(torch.nn.Module):
         # convert to tensor
         x_padded = torch.tensor(x_padded, dtype=torch.float32)
         y_padded = torch.tensor(y_padded, dtype=torch.float32)
+        t_padded = torch.tensor(t_padded, dtype=torch.float32)
         seq_len = torch.tensor(seq_len, device='cpu', dtype=torch.int64)
         mask = torch.tensor(mask, dtype=torch.bool)
 
@@ -150,8 +141,11 @@ class Preprocess(torch.nn.Module):
         if fit:
             x_padded = self.x_scaler.fit_transform(x_padded)
             y_padded = self.y_scaler.fit_transform(y_padded)
+            t_padded = self.t_scaler.fit_transform(t_padded)
         else:
             x_padded = self.x_scaler.transform(x_padded)
             y_padded = self.y_scaler.transform(y_padded)
+            t_padded = self.t_scaler.transform(t_padded)
 
-        return x_padded, y_padded, seq_len, mask
+        return x_padded, y_padded, t_padded, seq_len, mask
+

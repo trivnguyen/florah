@@ -3,7 +3,7 @@ from typing import Tuple, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import LongTensor, FloatTensor
+from torch import Tensor
 
 from . import modules
 from . import flows
@@ -23,6 +23,30 @@ class DataModule(modules.MAFModule):
             RecurrentMAF, transforms.Preprocess, model_hparams,
             transform_hparams, optimizer_hparams)
 
+class TimeEmbedding(torch.nn.Module):
+    r""" Time embedding neural network.
+    .. math::
+        PE() =
+    where :math:`d` is the embedding dimension
+    """
+    def __init__(
+        self, time_channels: int, embed_channels: int) -> None:
+        """
+        Parameters
+        ----------
+        time_channels: int
+            Number of time input channels
+        embed_channels: int
+            Number of embedded dimension
+        """
+        super(TimeEmbedding, self).__init__()
+
+        self.embed_channels = embed_channels
+        self.linear_embed = torch.nn.Linear(time_channels, embed_channels)
+
+    def forward(self, t: Tensor) -> Tensor:
+        return torch.cos(self.linear_embed(t))
+
 
 class RecurrentMAF(torch.nn.Module):
     """ Recurrent-MAF architecture for merger tree generation """
@@ -30,19 +54,22 @@ class RecurrentMAF(torch.nn.Module):
         'RNN': torch.nn.RNN,
         'GRU': torch.nn.GRU,
         'LSTM': torch.nn.LSTM,
+        'GRUD': grud.GRUD
     }
     layer_default_kargs = {
         'RNN': {},
         'GRU': {},
         'LSTM': {},
+        'GRUD': {}
     }
 
     def __init__(
-            self,
-            in_channels: int, out_channels: int, num_layers: int,
-            hidden_features: int, rnn_name: str , rnn_hparams: dict,
-            num_layers_flows: int, hidden_features_flows: int,
-            num_blocks: int, softplus: bool = False
+            self, in_channels: int, out_channels: int,
+            hidden_features: int = 64, num_layers: int = 1,
+            rnn_name: str = "GRU", rnn_hparams: Optional[dict] = None,
+            time_embed_channels: Optional[int] = None,
+            num_layers_flows: int = 1, hidden_features_flows: int = 64,
+            num_blocks: int = 2, softplus: bool = False
         ) -> None:
         """
         Parameters
@@ -51,6 +78,8 @@ class RecurrentMAF(torch.nn.Module):
                 Number of input channels
             out_channels: int
                 Number of output channels
+            time_embed_channels: int
+                Number of time embeeding channels
             rnn_name: str
                 Type of the recurrent layer to use
             rnn_hparams: dict
@@ -71,6 +100,7 @@ class RecurrentMAF(torch.nn.Module):
         super(RecurrentMAF, self).__init__()
 
         # get recurrent layer type to use
+        self.rnn_name = rnn_name
         if rnn_name in self.layer_dict:
             self.rnn_layer = self.layer_dict[rnn_name]
         else:
@@ -78,10 +108,19 @@ class RecurrentMAF(torch.nn.Module):
                 f"Unknown model name \"{rnn_name}\"."\
                 f"Available models are: {str(self.layer_dict.keys())}")
 
+        # time embedding layers, currently set to torch.nn.Identity
+        if time_embed_channels is None:
+            self.embedding_net = torch.nn.Identity()
+            in_channels = in_channels + 2
+        else:
+            self.embedding_net = TimeEmbedding(2, time_embed_channels)
+            in_channels = in_channels + time_embed_channels
+
         # create RNN layers
         self.rnn = torch.nn.ModuleList()
         default_rnn_hparams = self.layer_default_kargs[rnn_name]
-        default_rnn_hparams.update(rnn_hparams)
+        if rnn_hparams is not None:
+            default_rnn_hparams.update(rnn_hparams)
         for i in range(num_layers):
             n_in = in_channels if i==0 else hidden_features
             n_out = hidden_features
@@ -98,50 +137,76 @@ class RecurrentMAF(torch.nn.Module):
         self.activation = F.relu
 
     def forward(
-            self, x: FloatTensor, seq_len: LongTensor,
-            h0: Optional[Tuple] = None) -> Tuple[FloatTensor, Tuple]:
+            self, x: Tensor, t_in: Tensor, t_out:  Tensor,
+            h0: Optional[Tuple] = None) -> Tuple[Tensor, Tuple]:
         r"""
         Forward pass
 
         Parameters:
-            x: FloatTensor (N_batch, L_padded, H_in)
+            x: Tensor (N_batch, L_padded, H_in)
                 Input tensor where `N_batch` is the batch size, `L_padded` is
                 the padded sequence length and `H_in` is the input dimension
-            seq_len: LongTensor (N_batch, )
-                The pre-padded sequence length of each input tensor
-            h0: Tuple of FloatTensor
+            t_in: Tensor (N_batch, L_padded, H_in_t)
+                Input time tensor
+            t_out: Tensor (N_batch, L_padded, H_in_t)
+                Output time tensor
+            h0: Tuple of Tensor
                 Tuple of initial hidden states to pass into each recurrent layer
 
         """
         hout = []  # list of output hidden states
         total_length = x.shape[1]
 
+        # time embedding and append into input array
+        t_embed = self.embedding_net(torch.cat([t_in, t_out], dim=-1))
+        x = torch.cat([x, t_embed], dim=-1)
+
+        # compute time difference (without embedding)
+        if self.rnn_name == "GRUD":
+            t_delta = torch.cat([
+                torch.zeros(t_in.shape[0], 1, 1, dtype=t_in.dtype, device=t_in.device),
+                t_out[:, :-1] - t_in[:, :-1]
+            ], dim=1)
+        else:
+            t_delta = None
+
         # iterate over all recurrent layers
         for i in range(len(self.rnn)):
-            # pack sequence, pass through recurrent layer, and unpack
-            x = torch.nn.utils.rnn.pack_padded_sequence(
-                x, seq_len.cpu(), batch_first=True,
-                enforce_sorted=False)
-            x, h = self.rnn[i](
-                x, h0[i] if h0 is not None else None)
-            x, _ = torch.nn.utils.rnn.pad_packed_sequence(
-                x, batch_first=True, total_length=total_length)
-
-            # activation
+            if t_delta is not None:
+                x, h = self.rnn[i](x, t_delta, h0[i] if h0 is not None else None)
+            else:
+                x, h = self.rnn[i](x, h0[i] if h0 is not None else None)
             if i != len(self.rnn) - 1:
                 x = self.activation(x)
             hout.append(h)
 
+        # iterate over all recurrent layers
+        #for i in range(len(self.rnn)):
+        #    # pack sequence, pass through recurrent layer, and unpack
+        #    x = torch.nn.utils.rnn.pack_padded_sequence(
+        #        x, seq_len.cpu(), batch_first=True,
+        #        enforce_sorted=False)
+        #    x, h = self.rnn[i](
+        #        x, h0[i] if h0 is not None else None)
+        #    x, _ = torch.nn.utils.rnn.pad_packed_sequence(
+        #        x, batch_first=True, total_length=total_length)
+        #    # activation
+        #    if i != len(self.rnn) - 1:
+        #        x = self.activation(x)
+        #    hout.append(h)
+
         # return output sequence and hidden states
         return x, hout
 
-    def log_prob(self, batch: Tuple[FloatTensor],
-                 return_context: bool = False) -> FloatTensor:
+    def log_prob(self, batch: Tuple[Tensor],
+                 return_context: bool = False) -> Tensor:
         """ Calculate log-likelihood from batch """
-        x, y, seq_len, mask = batch
+        x, y, t, seq_len, mask = batch
+        t_in = t[:, :-1]
+        t_out = t[:, 1:]
 
         # apply forward and return context
-        context, _ = self(x, seq_len)
+        context, _ = self(x, t_in, t_out)
 
         # reshape tensor before passing through MAF blocks
         context = context.flatten(0, 1)
@@ -156,11 +221,11 @@ class RecurrentMAF(torch.nn.Module):
         else:
             return log_prob
 
-    def sample(self, x: FloatTensor, seq_len: LongTensor, num_samples: int,
-               return_context: bool = False) -> FloatTensor:
+    def sample(self, x: Tensor, t_in: Tensor, t_out: Tensor, num_samples: int,
+               return_context: bool = False) -> Tensor:
         """ Sample from batch """
         # forward pass and get context
-        context, _ = self(x, seq_len)
+        context, _ = self(x, t_in, t_out)
         context = context.flatten(0, 1)
 
         # sample and reshape
@@ -168,13 +233,14 @@ class RecurrentMAF(torch.nn.Module):
         return y
 
     def _sample_from_context(
-            self, num_samples: int, context: Optional[FloatTensor] = None
-        ) -> FloatTensor:
+            self, num_samples: int, context: Optional[Tensor] = None
+        ) -> Tensor:
         """ Sample P(x | context) """
         return self.maf_blocks.sample(num_samples, context=context)
 
     def _log_prob_from_context(
-            self, x: FloatTensor,
-            context: Optional[FloatTensor] = None) -> FloatTensor:
+            self, x: Tensor,
+            context: Optional[Tensor] = None) -> Tensor:
         """ Return MAF log-likelihood P(x | context)"""
         return self.maf_blocks.log_prob(x, context=context)
+
