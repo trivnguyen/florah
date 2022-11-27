@@ -8,6 +8,7 @@ from torch import Tensor
 from . import modules
 from . import flows
 from . import transforms
+from . import grud
 
 class DataModule(modules.MAFModule):
     """
