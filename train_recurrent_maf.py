@@ -63,6 +63,9 @@ def parse_cmd():
         "--out-channels", required=True, type=int,
         help="Number of output channels")
     parser.add_argument(
+        "--time-embed-channels", required=False, type=int,
+        help="Number of time embedding channels")
+    parser.add_argument(
         "--rnn-name", required=False, type=str.upper, default="GRU",
         help="Type of RNN layers")
     parser.add_argument(
@@ -84,12 +87,6 @@ def parse_cmd():
     parser.add_argument(
         "--subtract-dim", required=False, type=int, nargs="+", default=[0, ],
         help="Dimension to subtract Y from X")
-    parser.add_argument(
-        "--use-time", required=False, action="store_true",
-        help="If True, add time parameters to X")
-    parser.add_argument(
-        "--use-dtime", required=False, action="store_true",
-        help="If True, add time difference parameters to X")
     # training args
     parser.add_argument(
         "--batch-size", required=False, type=int, default=1024,
@@ -130,10 +127,10 @@ def main():
     LOGGER = set_logger()
 
     # Create data module
-    in_channels = FLAGS.in_channels + int(FLAGS.use_time) + int(FLAGS.use_dtime)
     model_hparams = {
-        "in_channels": in_channels,
+        "in_channels": FLAGS.in_channels,
         "out_channels": FLAGS.out_channels,
+        "time_embed_channels": FLAGS.time_embed_channels,
         "num_layers": FLAGS.num_layers,
         "hidden_features": FLAGS.hidden_features,
         "num_layers_flows": FLAGS.num_layers_flows,
@@ -146,8 +143,6 @@ def main():
         "nx": FLAGS.in_channels,
         "ny": FLAGS.out_channels,
         "sub_dim": FLAGS.subtract_dim,
-        "use_t": FLAGS.use_time,
-        "use_dt": FLAGS.use_dtime,
     }
     optimizer_hparams = {
         "optimizer": {
