@@ -17,7 +17,7 @@ from torch import FloatTensor
 
 from merger_tree_ml import physics, utils
 from merger_tree_ml.models import recurrent_maf, attention_maf, torchutils
-from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_RAW_DATASET_PATH
+from merger_tree_ml.config import DEFAULT_RUN_PATH, DEFAULT_RAW_DATASET_PATH
 
 # DEFINE GLOBAL VARIABLES
 FLAGS = None

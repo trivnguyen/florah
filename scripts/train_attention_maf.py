@@ -1,13 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import os
-import sys
-import json
-import shutil
 import argparse
-import logging
-import h5py
+import os
 
 import torch
 import pytorch_lightning as pl
@@ -16,19 +11,8 @@ from pytorch_lightning.loggers import CSVLogger
 
 from merger_tree_ml import utils
 from merger_tree_ml.models import attention_maf
-from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
-
-
-# Set logger
-def set_logger():
-    """ Set up logger to STDOUT """
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    return logger
+from merger_tree_ml.logger import logger
+from merger_tree_ml.config import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 # Parser cmd argument
 def parse_cmd():
@@ -52,6 +36,9 @@ def parse_cmd():
     parser.add_argument(
         "--run-version", required=False, type=str,
         help="Run version")
+    parser.add_argument(
+        "--pretrained-path", required=False, type=str,
+        help="Path to pretrained model")
     parser.add_argument(
         "--resume", required=False, action="store_true",
         help="Enable to resume previous run. Version number is required.")
@@ -118,14 +105,24 @@ def parse_cmd():
     parser.add_argument(
         "--warmup-steps", required=False, type=int, default=5000,
         help="Warm up step for Attention LR scheduler")
-    return parser.parse_args()
+
+    # check for incompatible arguments
+    params = parser.parse_args()
+    if params.resume:
+        if params.pretrained_path is not None:
+            raise argparse.ArgumentError(
+                f"resume cannot be enable if pretrained path is given")
+        if params.run_version is None:
+            raise argparse.ArgumentError(
+                f"run version is required to resume training")
+
+    return params
 
 
 def main():
     """ Train Attention-MAF model for merger tree generation """
      # Parse cmd args
     FLAGS = parse_cmd()
-    LOGGER = set_logger()
 
     # Create data module
     model_hparams = {
@@ -160,9 +157,9 @@ def main():
     model = attention_maf.DataModule(
         model_hparams, transform_hparams, optimizer_hparams)
 
-    LOGGER.info(f"Dataset path: {FLAGS.dataset_prefix}/{FLAGS.dataset_name}")
-    LOGGER.info(f"Run path: {FLAGS.run_prefix}/{FLAGS.run_name}")
-    LOGGER.info(f"Version: {FLAGS.run_version}")
+    logger.info(f"Dataset path: {FLAGS.dataset_prefix}/{FLAGS.dataset_name}")
+    logger.info(f"Run path: {FLAGS.run_prefix}/{FLAGS.run_name}")
+    logger.info(f"Version: {FLAGS.run_version}")
 
     # Read in features and labels and preprocess
     train_path = utils.io_utils.get_dataset(
@@ -189,12 +186,14 @@ def main():
     )
 
     # Create pytorch_lightning trainer
+    # Create pytorch_lightning trainer
     if FLAGS.resume:
-        if FLAGS.run_version is None:
-            raise ValueError(f"run version is required to resume training")
-        run_path = utils.get_run(
+        run_path = utils.io_utils.get_run(
             FLAGS.run_name, prefix=FLAGS.run_prefix, version=FLAGS.run_version)
-        ckpt_path, _ = utils.get_best_checkpoint(run_path)
+        ckpt_path, _ = utils.io_utils.get_best_checkpoint(run_path)
+    else:
+        ckpt_path = FLAGS.pretrained_path
+    logger.info(f"Pretrained path: {ckpt_path}")
 
     trainer = pl.Trainer(
         default_root_dir=os.path.join(FLAGS.run_prefix, FLAGS.run_name),
@@ -219,7 +218,7 @@ def main():
         model=model, train_dataloaders=train_loader,
         val_dataloaders=val_loader)
 
-    LOGGER.info("Done!")
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
