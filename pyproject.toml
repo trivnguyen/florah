@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry]
+name = "merger_tree_ml"
+version = "0.0.0"
+description = "Generating galaxy merger trees with flow-based recurrent model"
+authors = ["Tri Nguyen <tnguy@mit.edu>"]
+license = "MIT"
+homepage = "https://github.com/trivnguyen/merger_tree_ml"

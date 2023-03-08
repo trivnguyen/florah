@@ -15,13 +15,13 @@ from torch.utils.data import TensorDataset, DataLoader
 from pytorch_lightning.loggers import CSVLogger
 
 from merger_tree_ml import utils
-from merger_tree_ml.models import recurrent_maf
+from merger_tree_ml.models import attention_maf
 from merger_tree_ml.envs import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 
 # Set logger
 def set_logger():
-    ''' Set up stdv out logger and file handler '''
+    """ Set up logger to STDOUT """
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -54,8 +54,8 @@ def parse_cmd():
         help="Run version")
     parser.add_argument(
         "--resume", required=False, action="store_true",
-        help="Enable to resume previous run. Version number is required")
-    # model and graph args
+        help="Enable to resume previous run. Version number is required.")
+    # model args
     parser.add_argument(
         "--in-channels", required=True, type=int,
         help="Number of input channels")
@@ -66,14 +66,14 @@ def parse_cmd():
         "--time-embed-channels", required=False, type=int,
         help="Number of time embedding channels")
     parser.add_argument(
-        "--rnn-name", required=False, type=str.upper, default="GRU",
-        help="Type of RNN layers")
-    parser.add_argument(
         "--hidden-features", required=False, type=int, default=64,
-        help="Number of hidden RNN features")
+        help="Number of hidden features for self-attention blocks")
     parser.add_argument(
-        "--num-layers", required=False, type=int, default=2,
-        help="Number of RNN transformations")
+        "--num-blocks", required=False, type=int, default=1,
+        help="Number of self-attention blocks")
+    parser.add_argument(
+        "--num-heads", required=False, type=int, default=1,
+        help="Number of attention heads in self-attention blocks")
     parser.add_argument(
         "--hidden-features-flows", required=False, type=int, default=128,
         help="Number of hidden features of MAF transformations")
@@ -81,7 +81,7 @@ def parse_cmd():
         "--num-layers-flows", required=False, type=int, default=4,
         help="Number of MAF transformations")
     parser.add_argument(
-        "--num-blocks", required=False, type=int, default=2,
+        "--num-blocks-flows", required=False, type=int, default=2,
         help="Number of blocks per MAF transformation")
     # transfrom args
     parser.add_argument(
@@ -92,10 +92,10 @@ def parse_cmd():
         "--batch-size", required=False, type=int, default=1024,
         help="Batch size")
     parser.add_argument(
-        "--max-epochs", required=False, type=int, default=1000,
+        "--max-epochs", required=False, type=int, default=10000,
         help="Maximum number of epochs. Stop training automatically if exceeds")
     parser.add_argument(
-        "--es-stopping", required=False, type=int, default=40,
+        "--es-patience", required=False, type=int, default=100,
         help="Patience for early stopping")
     parser.add_argument(
         "--num-workers", required=False, type=int, default=1,
@@ -113,16 +113,17 @@ def parse_cmd():
                                   "averages of gradient and its square")
     # scheduler args
     parser.add_argument(
-        "--scheduler", required=False, type=str, default="ReduceLROnPlateau",
+        "--scheduler", required=False, type=str, default="AttentionScheduler",
         help="Type of LR scheduler to use")
     parser.add_argument(
-        "--scheduler-patience", required=False, type=int, default=20,
-        help="Patience for LR scheduler")
-
+        "--warmup-steps", required=False, type=int, default=5000,
+        help="Warm up step for Attention LR scheduler")
     return parser.parse_args()
 
+
 def main():
-    # Parse cmd args
+    """ Train Attention-MAF model for merger tree generation """
+     # Parse cmd args
     FLAGS = parse_cmd()
     LOGGER = set_logger()
 
@@ -131,18 +132,18 @@ def main():
         "in_channels": FLAGS.in_channels,
         "out_channels": FLAGS.out_channels,
         "time_embed_channels": FLAGS.time_embed_channels,
-        "num_layers": FLAGS.num_layers,
         "hidden_features": FLAGS.hidden_features,
+        "num_blocks": FLAGS.num_blocks,
+        "num_heads": FLAGS.num_heads,
         "num_layers_flows": FLAGS.num_layers_flows,
         "hidden_features_flows": FLAGS.hidden_features_flows,
-        "num_blocks": FLAGS.num_blocks,
-        "rnn_name": FLAGS.rnn_name,
-        "rnn_hparams": {},
+        "num_blocks_flows": FLAGS.num_blocks_flows
     }
     transform_hparams = {
         "nx": FLAGS.in_channels,
         "ny": FLAGS.out_channels,
         "sub_dim": FLAGS.subtract_dim,
+        "use_t": True,
     }
     optimizer_hparams = {
         "optimizer": {
@@ -152,10 +153,11 @@ def main():
         },
         "scheduler": {
             "scheduler": FLAGS.scheduler,
-            "patience": FLAGS.scheduler_patience
+            "dim_embed": FLAGS.hidden_features,
+            "warmup_steps": FLAGS.warmup_steps,
         }
     }
-    model = recurrent_maf.DataModule(
+    model = attention_maf.DataModule(
         model_hparams, transform_hparams, optimizer_hparams)
 
     LOGGER.info(f"Dataset path: {FLAGS.dataset_prefix}/{FLAGS.dataset_name}")
@@ -203,11 +205,11 @@ def main():
             FLAGS.run_prefix, name=FLAGS.run_name, version=FLAGS.run_version),
         callbacks=[
             pl.callbacks.ModelCheckpoint(
-                filename="{epoch}-{val_loss:.4f}", save_weights_only=True,
+                filename="{epoch}-{val_loss:.4f}", save_weights_only=False,
                 mode="min", monitor="val_loss"),
             pl.callbacks.LearningRateMonitor("epoch"),
             pl.callbacks.early_stopping.EarlyStopping(
-                monitor="val_loss", min_delta=0.00, patience=FLAGS.es_stopping,
+                monitor="val_loss", min_delta=0.00, patience=FLAGS.es_patience,
                 mode="min", verbose=True),
         ],
     )
@@ -219,5 +221,6 @@ def main():
 
     LOGGER.info("Done!")
 
+
 if __name__ == "__main__":
-    main()
+   main()
