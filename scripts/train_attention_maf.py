@@ -216,7 +216,7 @@ def main():
     # Start training
     trainer.fit(
         model=model, train_dataloaders=train_loader,
-        val_dataloaders=val_loader)
+        val_dataloaders=val_loader, ckpt_path=ckpt_path)
 
     logger.info("Done!")
 
