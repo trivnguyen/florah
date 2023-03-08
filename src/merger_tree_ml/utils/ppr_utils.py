@@ -1,22 +1,19 @@
 
+import os
+
 import numpy as np
 
-from ..config import BP_TABLE_PATH, GUREFT_TABLE_PATH, VSMDPL_TABLE_PATH
+from ..config import DEFAULT_DATA_PATH
 
 def get_ztable(box, return_scale_factor=False):
     """ Read in z table """
-    if 'BP' in box:
-        z_table = np.genfromtxt(
-            BP_TABLE_PATH, delimiter=',', unpack=True)[-1]
-    elif 'GUREFT' in box:
-        z_table = np.genfromtxt(
-            GUREFT_TABLE_PATH, delimiter=',', unpack=True)[-1]
-    elif 'VSMDPL' in box:
-        z_table = np.genfromtxt(
-            VSMDPL_TABLE_PATH, delimiter=',', unpack=True)[-1]
-    else:
-        return None
-
+    if box == "BP":
+        path = os.path.join(DEFAULT_DATA_PATH, "bp_redshifts.txt")
+    elif box == "VSMDPL":
+       path = os.path.join(DEFAULT_DATA_PATH, "vsmdpl_redshifts.txt")
+    elif box in ("GUREFT", "GUREFT05", "GUREFT15", "GUREFT35", "GUREFT90"):
+        path = os.path.join(DEFAULT_DATA_PATH, "gureft_redshifts.txt")
+    z_table = np.genfromtxt(path, delimiter=',', unpack=True)[-1]
     if return_scale_factor:
         return 1 / (1 + z_table)
     return z_table
