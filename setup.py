@@ -2,5 +2,5 @@
 import shutil
 from setuptools import setup
 
-shutil.copy("config.ini", "src/merger_tree_ml/config.ini")
+shutil.copy("config.ini", "src/florah/config.ini")
 setup()
