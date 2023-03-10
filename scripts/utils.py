@@ -70,7 +70,6 @@ def create_interpolator(times, is_omega=True):
     ZZ = -physics.calc_Svar(XX, YY, cosmo, Pk, kmin=1e-5, kmax=1e10)
     XX = np.log10(XX)
 
-
     def svar_to_mass(svar, z):
         if is_omega:
             z = physics.calc_redshift(z, cosmo=cosmo)
@@ -82,5 +81,3 @@ def create_interpolator(times, is_omega=True):
         return interpolate.griddata((XX, YY), ZZ, (mass, z))
 
     return svar_to_mass, mass_to_svar
-
-

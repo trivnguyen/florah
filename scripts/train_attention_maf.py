@@ -73,7 +73,7 @@ def parse_cmd():
     # transfrom args
     parser.add_argument(
         "--subtract-dim", required=False, type=int, nargs="+", default=[0, ],
-        help="Dimension to subtract Y from X")
+        help="Dimension to use dX instead of X")
     # training args
     parser.add_argument(
         "--batch-size", required=False, type=int, default=1024,

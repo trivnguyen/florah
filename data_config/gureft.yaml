@@ -1,0 +1,43 @@
+# dataset and input output argument
+dataset:
+  box:
+    - GUREFT05
+    - GUREFT15
+    - GUREFT35
+    - GUREFT90
+  out: GUREFT-nEG
+  zmax_table: /mnt/home/tnguyen/merger_tree_ml/tables/gureft_zmax.txt
+  train_frac: 0.9
+  shuffle: true
+
+# halo arguments
+halo:
+  mass_dark:
+    - 9.92e+3
+    - 2.68e+5
+    - 3.40e+6
+    - 5.78e+7
+  num_min_halo: 0
+  num_min_root: 500
+  redshift_max: 15
+  node_props:
+    - log_mass
+    - cvir
+    - aexp
+  n_dim_time: 1
+  uniform: false
+  # dlogm: 0.05
+
+# tree arguments
+tree:
+  num_trees: 15
+  min_length: 5
+  max_length: 20
+  min_ini: 0
+  max_ini: 40
+  step_min: 2
+  step_max: 6
+  enforce_growth: false
+  branches:
+    - 0
+    - 1
