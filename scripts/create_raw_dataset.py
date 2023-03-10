@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import ytree
-from merger_tree_ml import utils
+from florah import utils
 
 
 def parse_cmd():

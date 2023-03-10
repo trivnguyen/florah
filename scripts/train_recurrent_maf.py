@@ -10,10 +10,10 @@ import pytorch_lightning as pl
 from torch.utils.data import TensorDataset, DataLoader
 from pytorch_lightning.loggers import CSVLogger
 
-from merger_tree_ml import utils
-from merger_tree_ml.models import recurrent_maf
-from merger_tree_ml.logger import logger
-from merger_tree_ml.config import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
+from florah import utils
+from florah.models import recurrent_maf
+from florah.logger import logger
+from florah.config import DEFAULT_RUN_PATH, DEFAULT_DATASET_PATH
 
 # Parser cmd argument
 def parse_cmd():

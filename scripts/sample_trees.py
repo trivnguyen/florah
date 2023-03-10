@@ -15,9 +15,9 @@ import scipy.interpolate as interpolate
 from scipy.stats import binned_statistic
 from torch import FloatTensor
 
-from merger_tree_ml import physics, utils
-from merger_tree_ml.models import recurrent_maf, attention_maf, torchutils
-from merger_tree_ml.config import DEFAULT_RUN_PATH, DEFAULT_RAW_DATASET_PATH
+from florah import physics, utils
+from florah.models import recurrent_maf, attention_maf, torchutils
+from florah.config import DEFAULT_RUN_PATH, DEFAULT_RAW_DATASET_PATH
 
 # DEFINE GLOBAL VARIABLES
 FLAGS = None

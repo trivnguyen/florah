@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from merger_tree_ml import utils, config
-from merger_tree_ml.logger import logger
+from florah import utils, config
+from florah.logger import logger
 
 def parse_cmd():
     parser = argparse.ArgumentParser()
