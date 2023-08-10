@@ -49,8 +49,8 @@ def calc_derived_props(data):
     rvir, ptr = squeeze_array(data['rvir'])
     rs, _ = squeeze_array(data['rs'])
     cvir = rvir / rs
-    cvir = unsqueeze_array(cvir, ptr)
-    data['cvir'] = cvir
+    data['cvir'] = unsqueeze_array(cvir, ptr)
+    data['log_cvir'] = unsqueeze_array(np.log10(cvir), ptr)
 
     # calculate scale factor
     zred, ptr = squeeze_array(data['redshift'])

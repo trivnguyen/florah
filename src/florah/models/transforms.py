@@ -102,7 +102,7 @@ class Preprocess(torch.nn.Module):
         """ Apply transformation
         Parameters:
             data: dict
-                Data dictionary with key "t" and "y"
+                Data dictionary with key "x" and "t"
             fit: bool
                 If True, fit scaler to data and then transform. Default: True
         """
