@@ -5,10 +5,12 @@ from . import transforms
 from . import modules
 from . import recurrent_maf
 from . import attention_maf
+from . import recurrent_bin_classifier
 
 ALL_MODELS = {
     "AttentionMAF": attention_maf,
     "RecurrentMAF": recurrent_maf,
+    'RecurrentBinaryClassifier': recurrent_bin_classifier
 }
 
 def get_model_arch(model_arch):

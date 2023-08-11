@@ -76,7 +76,7 @@ class BaseModule(pl.LightningModule):
             }
 
     def _get_optimizer(self) -> Optimizer:
-        hparams = self.hparams.optimizer_hparams['optimizer']
+        hparams = self.hparams.optimizer_hparams['optimizer'].copy()
         optimizer = hparams.pop('optimizer')
         if optimizer == "Adam":
             return torch.optim.Adam(self.parameters(), **hparams)
@@ -88,7 +88,7 @@ class BaseModule(pl.LightningModule):
 
     def _get_scheduler(self, optimizer: Optimizer) -> Union[_LRScheduler, None]:
         """ Return LR scheduler """
-        hparams = self.hparams.optimizer_hparams['scheduler']
+        hparams = self.hparams.optimizer_hparams['scheduler'].copy()
         scheduler = hparams.pop('scheduler')
         if scheduler is None:
             return None
