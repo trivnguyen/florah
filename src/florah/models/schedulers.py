@@ -2,6 +2,7 @@
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
+
 class AttentionScheduler(_LRScheduler):
     """ Learning rate scheduler for Attention-MAF """
 
@@ -24,4 +25,3 @@ class AttentionScheduler(_LRScheduler):
 
     def _calc_lr(self, step, dim_embed, warmup_steps) -> float:
         return dim_embed**(-0.5) * min(step**(-0.5), step * warmup_steps**(-1.5))
-
