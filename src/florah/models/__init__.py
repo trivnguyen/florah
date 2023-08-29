@@ -1,16 +1,18 @@
 
-from . import bijectors
-from . import flows
-from . import transforms
-from . import modules
-from . import recurrent_maf
-from . import attention_maf
-from . import recurrent_bin_classifier
+from . import base_modules, flows, transforms
+from . import recurrent_maf, attention_maf
+
+__all__ = [
+    "base_modules",
+    "flows",
+    "transforms",
+    "recurrent_maf",
+    "attention_maf",
+]
 
 ALL_MODELS = {
     "AttentionMAF": attention_maf,
     "RecurrentMAF": recurrent_maf,
-    'RecurrentBinaryClassifier': recurrent_bin_classifier
 }
 
 def get_model_arch(model_arch):
