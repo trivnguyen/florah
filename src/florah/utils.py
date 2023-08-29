@@ -1,9 +1,10 @@
+
 from typing import Optional, Union
 
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset, DataLoader
 from torch import Tensor
+from torch.utils.data import DataLoader, TensorDataset
 
 
 def sample_trees(
@@ -21,6 +22,26 @@ def sample_trees_recurrent(
         model: torch.nn.Module, roots: np.ndarray, times: np.ndarray,
         to_numpy: bool = True, device: Optional = None, batch_size: int = 4096
     ) -> Union[Tensor, np.ndarray]:
+    """ Sample trees using Recurrent-MAF model
+    Parameters
+    ----------
+    model: torch.nn.Module
+        Recurrent model
+    roots: np.ndarray
+        Root features
+    times: np.ndarray
+        Time features
+    to_numpy: bool
+        Whether to convert to numpy
+    device: Optional
+        Device to use
+    batch_size: int
+
+    Returns
+    -------
+    x: Union[Tensor, np.ndarray]
+        Sampled trees
+    """
 
     if device is None:
         device = torch.device(
@@ -51,7 +72,7 @@ def sample_trees_recurrent_batch(
         model: torch.nn.Module, roots: Tensor, times: Tensor,
         to_numpy: bool = True
     ) -> Union[Tensor, np.ndarray]:
-    """ Sample trees using recurrent MAF model """
+    """ Sample trees from batch """
     model.eval()
     num_trees, num_feat = roots.shape
     sub_dim = model.transform.sub_dim
@@ -90,6 +111,28 @@ def sample_trees_attention(
         to_numpy: bool = True, device: Optional = None,
         batch_size: int = 4096
     ) -> Union[Tensor, np.ndarray]:
+    """ Sample trees using attention MAF model
+
+    Parameters
+    ----------
+    model: torch.nn.Module
+        Attention MAF model
+    roots: np.ndarray
+        Root features
+    time: np.ndarray
+        Time features
+    to_numpy: bool
+        Whether to convert to numpy
+    device: Optional
+        Device to use
+    batch_size: int
+        Batch size
+
+    Returns
+    -------
+    x: Union[Tensor, np.ndarray]
+        Sampled trees
+    """
     ds = TensorDataset(torch.tensor(roots, dtype=torch.float32))
     dataloader = DataLoader(ds, batch_size=batch_size, shuffle=False)
     with torch.no_grad():
@@ -109,6 +152,8 @@ def sample_trees_attention_batch(
         time: Optional[np.ndarray] = None, to_numpy: bool = True,
         device: Optional = None,
     ) -> Union[Tensor, np.ndarray]:
+    """ Sample trees from batch """
+
     model.eval()
     num_trees, num_feat = roots.shape
     num_feat_nt = num_feat - 1 if time is not None else num_feat
