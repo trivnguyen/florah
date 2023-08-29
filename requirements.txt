@@ -1,0 +1,6 @@
+astropy
+numpy
+pandas
+torch>=2.0.0
+pytorch_lightning
+scipy
