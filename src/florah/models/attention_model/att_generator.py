@@ -1,3 +1,4 @@
+
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -5,10 +6,16 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from . import flows, modules, torchutils, transforms
+from .. import flows, base_modules, transforms
 
 
-class DataModule(modules.MAFModule):
+def look_ahead_mask(seq_len: int) -> Tensor:
+    """  Return mask which prevents future data to be seen """
+    mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1)
+    mask[mask.bool()] = -torch.inf
+    return mask
+
+class DataModule(base_modules.MAFModule):
     """
     DataModule for Attention-MAF model
     """
@@ -166,8 +173,7 @@ class AttentionMAF(torch.nn.Module):
         max_len = xt.shape[1]
 
         # apply forward pass and return context for MAF
-        context = self(xt[...,:-1], xt[..., -2:-1],
-                       attn_mask=torchutils.look_ahead_mask(max_len))
+        context = self(xt[...,:-1], xt[..., -2:-1], attn_mask=look_ahead_mask(max_len))
 
         # reshape tensor before passing through MAF blocks
         context = context.flatten(0, 1)
