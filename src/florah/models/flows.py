@@ -1,15 +1,37 @@
-from typing import Callable
 
-import torch
-import torch.nn.functional as F
-from nflows import distributions, transforms, flows
+
+from nflows import distributions, flows, transforms
+
+from .utils import get_activation
 
 
 def build_maf(
         features: int, hidden_features: int, context_features: int,
         num_layers: int, num_blocks: int, activation: str = 'tanh'
     ) -> flows.Flow:
-    """ Build masked autoregressive flow (MAF) layers """
+    """ Build a MAF normalizing flow
+
+    Parameters
+    ----------
+    features: int
+        Number of features
+    hidden_features: int
+        Number of hidden features
+    context_features: int
+        Number of context features
+    num_layers: int
+        Number of layers
+    num_blocks: int
+        Number of blocks
+    activation: str
+        Name of the activation function
+
+    Returns
+    -------
+    maf: flows.Flow
+        MAF normalizing flow
+    """
+
     transform = []
     transform.append(transforms.CompositeTransform(
         [
@@ -36,14 +58,3 @@ def build_maf(
     distribution = distributions.StandardNormal((features,))
     maf = flows.Flow(transform, distribution)
     return maf
-
-def _get_activation(activation: str) -> Callable[[torch.Tensor], torch.Tensor]:
-    if activation == 'tanh':
-        return torch.tanh
-    elif activation == 'relu':
-        return torch.relu
-    elif activation == 'sigmoid':
-        return torch.sigmoid
-    else:
-        raise RuntimeError(
-            "activation should be tanh/relu/sigmoid, not {}".format(activation))
