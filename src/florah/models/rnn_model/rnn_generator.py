@@ -6,10 +6,11 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from . import flows, grud, modules, transforms
+from .. import base_modules, flows, transforms
+from . import grud
 
 
-class DataModule(modules.MAFModule):
+class DataModule(base_modules.MAFModule):
     """
     DataModule for Recurrent-MAF model
     """
@@ -50,14 +51,57 @@ class TimeEmbedding(torch.nn.Module):
 
 
 class RecurrentMAF(torch.nn.Module):
-    """ Recurrent-MAF architecture for merger tree generation """
-    layer_dict = {
+    """
+    Recurrent-MAF model for time series forecasting.
+
+    Parameters
+    ----------
+    in_channels: int
+        Number of input channels
+    out_channels: int
+        Number of output channels
+    time_embed_channels: int
+        Number of time embeeding channels
+    rnn_name: str
+        Type of the recurrent layer to use
+    rnn_hparams: dict
+        Dictionary with extra kargs for current layer
+    num_layers: int
+        Number of recurrent hidden layers
+    hidden_features: int
+        Number of RNN hidden channels
+    num_layers_flows: int
+        number of MAF transformation
+    hidden_features_flows: int
+        Number of MAF hidden channels
+    num_blocks: int
+        Number of MADE blocks in each MAF transformation
+    softplus: bool
+        Deprecated.
+
+    Attributes
+    ----------
+    rnn_name: str
+        Type of the recurrent layer to use
+    rnn_layer: torch.nn.Module
+        Recurrent layer
+    embedding_net: torch.nn.Module
+        Embedding layer
+    rnn: torch.nn.ModuleList
+        List of recurrent layers
+    maf_blocks: torch.nn.ModuleList
+        List of MAF blocks
+    activation: torch.nn.Module
+        Activation function
+    """
+    # Static dictionary with recurrent layers
+    RNN_LAYERS = {
         'RNN': torch.nn.RNN,
         'GRU': torch.nn.GRU,
         'LSTM': torch.nn.LSTM,
         'GRUD': grud.GRUD
     }
-    layer_default_kargs = {
+    RNN_LAYERS_DEFAULT_ARGS = {
         'RNN': {},
         'GRU': {},
         'LSTM': {},
@@ -102,12 +146,12 @@ class RecurrentMAF(torch.nn.Module):
 
         # get recurrent layer type to use
         self.rnn_name = rnn_name
-        if rnn_name in self.layer_dict:
-            self.rnn_layer = self.layer_dict[rnn_name]
+        if rnn_name in self.RNN_LAYERS:
+            self.rnn_layer = self.RNN_LAYERS[rnn_name]
         else:
             raise KeyError(
                 f"Unknown model name \"{rnn_name}\"."\
-                f"Available models are: {str(self.layer_dict.keys())}")
+                f"Available models are: {str(self.RNN_LAYERS.keys())}")
 
         # time embedding layers, currently set to torch.nn.Identity
         if time_embed_channels is None:
@@ -119,7 +163,7 @@ class RecurrentMAF(torch.nn.Module):
 
         # create RNN layers
         self.rnn = torch.nn.ModuleList()
-        default_rnn_hparams = self.layer_default_kargs[rnn_name]
+        default_rnn_hparams = self.RNN_LAYERS_DEFAULT_ARGS[rnn_name]
         if rnn_hparams is not None:
             default_rnn_hparams.update(rnn_hparams)
         for i in range(num_layers):
@@ -229,3 +273,4 @@ class RecurrentMAF(torch.nn.Module):
             context: Optional[Tensor] = None) -> Tensor:
         """ Return MAF log-likelihood P(x | context)"""
         return self.maf_blocks.log_prob(x, context=context)
+

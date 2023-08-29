@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
+
 class GRUDCell(torch.nn.Module):
     r"""
     A gated recurrent unit (GRU) cell with a decaying hidden state.
@@ -134,4 +135,3 @@ class GRUD(torch.nn.Module):
             x_out = x_out.transpose(0, 1).contiguous()
 
         return x_out, h
-
