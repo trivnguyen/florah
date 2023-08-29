@@ -1,14 +1,12 @@
-from typing import Tuple, Optional, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from . import modules
-from . import flows
-from . import transforms
-from . import torchutils
+from . import flows, modules, torchutils, transforms
+
 
 class DataModule(modules.MAFModule):
     """

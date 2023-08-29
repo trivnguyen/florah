@@ -1,14 +1,13 @@
-from typing import Tuple, Optional
+
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from . import modules
-from . import flows
-from . import transforms
-from . import grud
+from . import flows, grud, modules, transforms
+
 
 class DataModule(modules.MAFModule):
     """
@@ -23,6 +22,7 @@ class DataModule(modules.MAFModule):
         super(DataModule, self).__init__(
             RecurrentMAF, transforms.Preprocess, model_hparams,
             transform_hparams, optimizer_hparams)
+
 
 class TimeEmbedding(torch.nn.Module):
     r""" Time embedding neural network.
@@ -181,21 +181,6 @@ class RecurrentMAF(torch.nn.Module):
                 x = self.activation(x)
             hout.append(h)
 
-        # iterate over all recurrent layers
-        #for i in range(len(self.rnn)):
-        #    # pack sequence, pass through recurrent layer, and unpack
-        #    x = torch.nn.utils.rnn.pack_padded_sequence(
-        #        x, seq_len.cpu(), batch_first=True,
-        #        enforce_sorted=False)
-        #    x, h = self.rnn[i](
-        #        x, h0[i] if h0 is not None else None)
-        #    x, _ = torch.nn.utils.rnn.pad_packed_sequence(
-        #        x, batch_first=True, total_length=total_length)
-        #    # activation
-        #    if i != len(self.rnn) - 1:
-        #        x = self.activation(x)
-        #    hout.append(h)
-
         # return output sequence and hidden states
         return x, hout
 
@@ -244,4 +229,3 @@ class RecurrentMAF(torch.nn.Module):
             context: Optional[Tensor] = None) -> Tensor:
         """ Return MAF log-likelihood P(x | context)"""
         return self.maf_blocks.log_prob(x, context=context)
-
