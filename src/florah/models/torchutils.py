@@ -5,11 +5,6 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader
 from torch import Tensor
 
-def look_ahead_mask(seq_len: int) -> Tensor:
-    """  Return mask which prevents future data to be seen """
-    mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1)
-    mask[mask.bool()] = -torch.inf
-    return mask
 
 def sample_trees(
     model: torch.nn.Module, *args, **kargs) -> Union[Tensor, np.array]:
