@@ -1,12 +1,9 @@
-#
-
-
 
 ==================================================
 FLORAH - generate assembly history with flow-based recurrent model
 ==================================================
 
-FLORAH generate assembly history of halos using a recurrent neural network and normalizing flow model, Nguyen et al. (2023) [1]_. You can also find our paper on arXiv at `https://arxiv.org/pdf/2308.05145.pdf`.
+FLORAH generate assembly history of halos using a recurrent neural network and normalizing flow model, Nguyen et al. (2023) [1]_. You can also find our paper on arXiv at `https://arxiv.org/abs/2308.05145`.
 
 :Authors:
     Tri Nguyen,
