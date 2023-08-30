@@ -37,7 +37,7 @@ class GRUDCell(torch.nn.Module):
         delta_size: int
             feature size of time step difference
         """
-        super(GRUDCell, self).__init__()
+        super().__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -100,7 +100,7 @@ class GRUD(torch.nn.Module):
             feature size of time step difference
         """
 
-        super(GRUD, self).__init__()
+        super().__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size

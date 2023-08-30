@@ -10,7 +10,7 @@ from .. import base_modules, flows, transforms
 from . import grud
 
 
-class DataModule(base_modules.MAFModule):
+class DataModule(base_modules.BaseFlowModule):
     """
     DataModule for Recurrent-MAF model
     """
@@ -41,7 +41,7 @@ class TimeEmbedding(torch.nn.Module):
         embed_channels: int
             Number of embedded dimension
         """
-        super(TimeEmbedding, self).__init__()
+        super().__init__()
 
         self.embed_channels = embed_channels
         self.linear_embed = torch.nn.Linear(time_channels, embed_channels)
@@ -142,7 +142,7 @@ class RecurrentMAF(torch.nn.Module):
             softplus: bool
                 Deprecated.
         """
-        super(RecurrentMAF, self).__init__()
+        super().__init__()
 
         # get recurrent layer type to use
         self.rnn_name = rnn_name

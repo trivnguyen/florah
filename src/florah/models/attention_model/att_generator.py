@@ -15,18 +15,18 @@ def look_ahead_mask(seq_len: int) -> Tensor:
     mask[mask.bool()] = -torch.inf
     return mask
 
-class DataModule(base_modules.MAFModule):
+class DataModule(base_modules.BaseFlowModule):
     """
-    DataModule for Attention-MAF model
+    DataModule for Recurrent-MAF model
     """
-    arch_type = "AttentionMAF"
+    arch_type = "RecurrentMAF"
     def __init__(
             self, model_hparams: Optional[dict] = None,
             transform_hparams: Optional[dict] = None,
             optimizer_hparams: Optional[dict] = None
         ) -> None:
         super(DataModule, self).__init__(
-            AttentionMAF, transforms.Preprocess, model_hparams,
+            RecurrentMAF, transforms.Preprocess, model_hparams,
             transform_hparams, optimizer_hparams)
 
 
@@ -48,7 +48,7 @@ class AttentionBlock(torch.nn.Module):
             linear_dim: int
                 Number of linear dimension
         """
-        super(AttentionBlock, self).__init__()
+        super().__init__()
 
         self.sa_layer = torch.nn.MultiheadAttention(
             embed_dim, num_heads, batch_first=True)
@@ -123,7 +123,7 @@ class AttentionMAF(torch.nn.Module):
             num_blocks_flows: int
                 Number of MADE blocks in each MAF transformation
         """
-        super(AttentionMAF, self).__init__()
+        super().__init__()
 
         # time embedding layers
         if time_embed_channels is None:

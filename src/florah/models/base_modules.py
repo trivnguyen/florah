@@ -10,8 +10,6 @@ from torch import FloatTensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
-from attention_model import att_scheduler
-
 
 class BaseModule(pl.LightningModule):
     """
@@ -60,7 +58,7 @@ class BaseModule(pl.LightningModule):
                 Optimizer hyperparameters. Default: None
 
         """
-        super(BaseModule, self).__init__()
+        super().__init__()
         self.save_hyperparameters()
 
         if model_hparams is None:
@@ -126,8 +124,6 @@ class BaseModule(pl.LightningModule):
         elif scheduler == 'ReduceLROnPlateau':
             return torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, 'min', **hparams)
-        elif scheduler == 'AttentionScheduler':
-            return att_scheduler.AttentionScheduler(optimizer, **hparams)
         else:
             raise NotImplementedError(
                 "optimizer must be 'ReduceLROnPlateau or AttentionScheduler'"\

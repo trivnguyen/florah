@@ -1,11 +1,12 @@
 
 from . import base_modules, flows, transforms
-from . import rnn_model, attention_model
+from .attention_model import att_generator
+from .rnn_model import rnn_generator
 
 
 ALL_MODELS = {
-    "AttentionMAF": attention_model.att_generator,
-    "RecurrentMAF": rnn_model.rnn_generator,
+    "AttentionMAF": att_generator,
+    "RecurrentMAF": rnn_generator,
 }
 
 def get_model_arch(model_arch):

@@ -16,7 +16,7 @@ class AttentionScheduler(_LRScheduler):
         self.warmup_steps = warmup_steps
         self.num_param_groups = len(optimizer.param_groups)
 
-        super(AttentionScheduler, self).__init__(
+        super().__init__(
             optimizer, last_epoch, verbose)
 
     def get_lr(self) -> float:

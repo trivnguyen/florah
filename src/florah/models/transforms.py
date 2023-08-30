@@ -21,7 +21,7 @@ class StandardScaler(torch.nn.Module):
                 If True, apply transformation with standard devitation. Default: True
 
         """
-        super(StandardScaler, self).__init__()
+        super().__init__()
 
         self.register_buffer("loc", torch.zeros(n))
         self.register_buffer("scale", torch.ones(n))
@@ -88,7 +88,7 @@ class Preprocess(torch.nn.Module):
             use_t: bool
                 Deprecated.
         """
-        super(Preprocess, self).__init__()
+        super().__init__()
 
         self.x_scaler = StandardScaler(nx, dim=[0, 1])
         self.y_scaler = StandardScaler(ny, dim=[0, 1])

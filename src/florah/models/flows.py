@@ -31,7 +31,6 @@ def build_maf(
     maf: flows.Flow
         MAF normalizing flow
     """
-
     transform = []
     transform.append(transforms.CompositeTransform(
         [
@@ -44,7 +43,7 @@ def build_maf(
                         num_blocks=num_blocks,
                         use_residual_blocks=False,
                         random_mask=False,
-                        activation=_get_activation(activation),
+                        activation=get_activation(activation),
                         dropout_probability=0.0,
                         use_batch_norm=True,
                     ),
