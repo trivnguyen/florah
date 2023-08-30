@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Nguyen"
+  given-names: "Tri"
+  orcid: "https://orcid.org/0000-0001-6189-8457"
+- family-names: "Modi"
+  given-names: "Chirag"
+- family-names: "Yung"
+  given-names: "Aaron"
+- family-names: "Somerville"
+  given-names: "Rachel"
+title: "FLORAH: A generative model for halo assembly histories"
+version: 0.0.0
+date-released: 2023-08-30
+url: "https://github.com/trivnguyen/florah"
